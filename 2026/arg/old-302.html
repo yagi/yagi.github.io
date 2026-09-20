@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>古いHTMLファイルを整理していたら変なものが出てきた - まどいノート</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js"></script>
+</head>
+<body>
+  <main class="container">
+    <header class="site-header">
+      <h1 class="site-title"><a href="index.html" style="color:inherit;text-decoration:none">まどいノート</a></h1>
+    </header>
+
+    <article class="paper">
+      <h1>古いHTMLファイルを整理していたら変なものが出てきた</h1>
+      <div class="meta">2026-07-17</div>
+
+      <p>古いバックアップを片付けていたら、2016年ごろに保存したらしいHTMLがいくつか出てきた。</p>
+      <p>大半は当時見ていた個人サイトや、もう閉鎖されたサービスのページだった。ファイル名も適当で、何のために保存したのかほとんど覚えていない。</p>
+      <p>その中に一つだけ、妙なファイルがあった。本文はほぼ空で、メタデータのような文字列だけが残っていた。</p>
+
+      <pre style="white-space:pre-wrap;background:#efede5;padding:16px;border:1px solid #d7d2c6">created: 2016-11-06
+expire: 2016-11-06 17:43
+reference: none</pre>
+
+      <p>削除日時のようにも見えるけれど、そもそもローカルに保存されているHTMLなので意味がよく分からない。</p>
+      <p>誰にも参照されなければ、そのうち消えるのだと思う。</p>
+
+      <p class="note">追記：元URLらしき文字列も残っていたが、現在はアクセスできない。</p>
+      <p class="note">はてなブックマーク：<a href="bookmark-mock.html">コメントを見る</a></p>
+
+      <div id="changed" hidden>
+        <hr>
+        <p><strong>参照されました。</strong></p>
+        <p id="stamp" class="meta"></p>
+        <!-- visitor record created -->
+      </div>
+    </article>
+  </main>
+
+  <script>
+    const s = loadState();
+    if (s.endedAt) {
+      document.getElementById('changed').hidden = false;
+      document.getElementById('stamp').textContent = s.endedAt;
+    }
+  </script>
+</body>
+</html>

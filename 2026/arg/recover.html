@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IDENTITY RECOVERY</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js"></script>
+</head>
+<body class="terminal-page">
+  <main class="terminal">
+    <h1>IDENTITY RECOVERY</h1>
+    <hr>
+    <div class="logline">2016-11-06</div>
+    <div class="logline">15:08 photographed</div>
+    <div class="logline">15:42 message</div>
+    <div class="logline">16:03 station</div>
+    <div class="logline">16:51 ---</div>
+    <div class="logline">17:43 deletion requested</div>
+
+    <hr>
+    <p>IDENTITY<br>水原 <span class="redacted">ユウ</span></p>
+    <p>AGE<br><span class="redacted">20</span></p>
+    <p>AFFILIATION<br><span class="redacted">東央大学</span></p>
+
+    <p class="muted">Restore missing fields.</p>
+    <label>NAME<br><input id="name" autocomplete="off"></label><br>
+    <label>AGE<br><input id="age" autocomplete="off"></label><br>
+    <label>AFFILIATION<br><input id="aff" autocomplete="off"></label><br>
+    <button id="submit">RESTORE</button>
+    <div id="error" class="error"></div>
+  </main>
+
+  <script>
+    document.getElementById('submit').onclick = () => {
+      const n = document.getElementById('name').value.trim().replace(/\s/g,'');
+      const a = document.getElementById('age').value.trim();
+      const f = document.getElementById('aff').value.trim().replace(/\s/g,'');
+      const okName = ['水原ユウ','ユウ','水原ゆう','ゆう'].includes(n);
+      const okAge = a === '20' || a === '20歳';
+      const okAff = ['東央大学','東央大'].includes(f);
+      if (okName && okAge && okAff) {
+        saveState({ recovered: 83 });
+        location.href = 'photo.html';
+      } else {
+        document.getElementById('error').textContent = 'Record mismatch.';
+      }
+    };
+  </script>
+</body>
+</html>

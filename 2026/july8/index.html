@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>july8</title>
+<style>
+  :root{
+    --bg:#0e1529;
+    --ink:#9ff7ff;
+    --ink-dim:#3b6a78;
+    --hot:#ff5aa0;
+    --warn:#ffd25a;
+    --core:#7dffb0;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{
+    height:100%;overflow:hidden;background:var(--bg);
+    position:fixed;inset:0;width:100%;
+    overscroll-behavior:none;            /* 引っ張り更新・バウンス防止 */
+  }
+  body{
+    font-family:"Courier New",ui-monospace,monospace;
+    color:var(--ink);
+    touch-action:none;
+    -webkit-user-select:none;user-select:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+  /* CRT風の走査線とビネット */
+  #crt{
+    position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px),
+      radial-gradient(ellipse at center, transparent 55%, rgba(0,0,10,.55) 100%);
+  }
+  #hud{
+    position:fixed;top:0;left:0;right:0;z-index:6;pointer-events:none;
+    display:flex;justify-content:space-between;align-items:flex-start;
+    padding:calc(10px + env(safe-area-inset-top)) 14px 0;
+    text-shadow:0 0 6px rgba(159,247,255,.7);
+    font-size:13px;letter-spacing:.08em;
+  }
+  .hud-col{display:flex;flex-direction:column;gap:4px}
+  .hud-col.right{align-items:flex-end}
+  .bar{width:120px;height:8px;border:1px solid var(--ink-dim);position:relative}
+  .bar>i{position:absolute;inset:1px;transform-origin:left;background:var(--core);box-shadow:0 0 8px var(--core)}
+  .bar.energy>i{background:var(--ink);box-shadow:0 0 8px var(--ink)}
+  .lbl{font-size:10px;color:var(--ink-dim);letter-spacing:.2em}
+  #score{font-size:20px;color:#fff;text-shadow:0 0 10px var(--ink)}
+  #wave{color:var(--warn);text-shadow:0 0 8px var(--warn)}
+  #overlay{
+    position:fixed;inset:0;z-index:7;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:18px;text-align:center;
+    background:rgba(4,6,14,.72);backdrop-filter:blur(2px);
+  }
+  #overlay.hidden{display:none}
+  #title{
+    font-size:min(15vw,84px);font-weight:bold;letter-spacing:.12em;color:#fff;
+    text-shadow:0 0 18px var(--ink),0 0 60px rgba(159,247,255,.5);
+  }
+  #title small{display:block;font-size:.22em;color:var(--ink);letter-spacing:.6em;margin-top:6px}
+  #howto{
+    max-width:min(86vw,460px);line-height:1.9;font-size:13px;color:var(--ink);
+    border:1px solid var(--ink-dim);padding:14px 18px;
+    background:rgba(6,9,19,.6);
+  }
+  #howto b{color:var(--hot);text-shadow:0 0 8px var(--hot)}
+  #start, #continue{
+    pointer-events:auto;cursor:pointer;font-family:inherit;
+    font-size:16px;letter-spacing:.3em;padding:14px 34px;
+    border:none;
+  }
+  #start{
+    color:#060913;background:var(--ink);
+    box-shadow:0 0 18px rgba(159,247,255,.8);
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  #continue{
+    color:#060913;background:var(--warn);
+    box-shadow:0 0 18px rgba(255,210,90,.8);
+    animation:pulse-continue 1.6s ease-in-out infinite;
+  }
+  #continue.hidden{display:none}
+  @keyframes pulse{50%{box-shadow:0 0 34px rgba(159,247,255,1)}}
+  @keyframes pulse-continue{50%{box-shadow:0 0 34px rgba(255,210,90,1)}}
+  @media (prefers-reduced-motion:reduce){#start, #continue{animation:none}}
+  #final{font-size:15px;color:var(--warn);text-shadow:0 0 8px var(--warn);display:none}
+  #mute{
+    position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:8;
+    pointer-events:auto;cursor:pointer;background:transparent;color:var(--ink-dim);
+    border:1px solid var(--ink-dim);font-family:inherit;font-size:12px;padding:6px 10px;letter-spacing:.1em;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="crt"></div>
+
+<div id="hud">
+  <div class="hud-col">
+    <div id="score">0</div>
+    <div class="lbl">SCORE</div>
+    <div id="wave">WAVE 1</div>
+  </div>
+  <div class="hud-col right">
+    <div class="lbl">CORE</div>
+    <div class="bar"><i id="hpbar"></i></div>
+    <div class="lbl">INK</div>
+    <div class="bar energy"><i id="inkbar"></i></div>
+  </div>
+</div>
+
+<div id="overlay">
+  <div id="title">july8</div>
+  <div id="final"></div>
+  <div id="howto">
+    指かマウスで<b>線を描いて放す</b>と、<br>
+    線は<b>描いた道筋を逆にたどり</b>、その形を繰り返しながら<br>
+    「終点→始点」の方向へ飛んでいく。ぐるぐる描けばぐるぐる飛ぶ。<br>
+    敵に当てて撃ち落とし、中央のコアを守れ。<br>
+    <span style="color:var(--ink-dim)">※ 線の長さは INK ゲージぶんまで。時間で回復する。</span>
+  </div>
+  <button id="start">START</button>
+  <button id="continue" class="hidden">CONTINUE</button>
+</div>
+
+<button id="mute">SOUND: ON</button>
+
+<script>
+"use strict";
+/* ============================================================
+   july8  : 描いた線分が形を保ったまま飛んでいく防衛ゲーム
+   PC(マウス) / スマホ(タッチ) 両対応 : Pointer Events + Canvas
+   ============================================================ */
+
+const cvs = document.getElementById("game");
+const ctx = cvs.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+let state = "title";          // title | play | over
+let coreX = 0, coreY = 0;
+let continueWave = 1;         // コンティニュー時の開始WAVE
+let targetX = 0, targetY = 0;
+let pointerX = 0, pointerY = 0;
+let isDrawing = false;
+let coreInvuln = 0;           // 被弾後の無敵時間タイマー
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cvs.width = W * DPR; cvs.height = H * DPR;
+  cvs.style.width = W + "px"; cvs.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (state === "title") {
+    coreX = W / 2;
+    coreY = H * 0.8;
+    targetX = coreX;
+    targetY = coreY;
+  }
+}
+window.addEventListener("resize", resize);
+resize();
+
+/* ---------- 画面固定: タッチによるスクロール/ズームを完全に抑止 ----------
+   touch-action:none を無視する環境(古いiOS Safari, 一部WebView)向けに
+   イベント側でも止める。passive:false が必須。 */
+document.addEventListener("touchmove", (e) => {
+  e.preventDefault();
+}, { passive: false });
+// iOS のピンチズームジェスチャ
+document.addEventListener("gesturestart", (e) => e.preventDefault());
+document.addEventListener("gesturechange", (e) => e.preventDefault());
+// キャンバス上のダブルタップズーム対策 (ボタン類はキャンバス外なのでタップ可)
+cvs.addEventListener("touchend", (e) => e.preventDefault(), { passive: false });
+
+/* ---------- サウンド (WebAudio 簡易シンセ) ---------- */
+let audioCtx = null, muted = false;
+const muteBtn = document.getElementById("mute");
+muteBtn.addEventListener("click", () => {
+  muted = !muted;
+  muteBtn.textContent = "SOUND: " + (muted ? "OFF" : "ON");
+  if (muted) {
+    stopBGM();
+  } else if (state === "play") {
+    startBGM();
+  }
+});
+function beep(freq, dur, type = "square", vol = 0.06, slide = 0){
+  if (muted) return;
+  try{
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t); o.stop(t + dur);
+  }catch(e){/* 音は失敗しても無視 */}
+}
+
+/* ---------- BGM (サイバーテクノ風アルペジオ) ---------- */
+let bgmTimer = null;
+let bgmStep = 0;
+const bgmNotes = [
+  220.00, 220.00, 261.63, 220.00,
+  293.66, 220.00, 329.63, 261.63,
+  220.00, 220.00, 329.63, 220.00,
+  392.00, 329.63, 293.66, 261.63
+];
+function playBGMNote(freq, dur) {
+  if (muted || !audioCtx) return;
+  try {
+    const t = audioCtx.currentTime;
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "sawtooth"; // スピーカーで聞こえやすいように倍音の多いのこぎり波に変更
+    o.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(0.012, t); // のこぎり波用に音量を抑えめに調整
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t); o.stop(t + dur);
+  } catch(e) {}
+}
+function startBGM() {
+  if (muted || bgmTimer) return;
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  bgmStep = 0;
+  const interval = 220; // 8分音符 (BPM 約136相当)
+  bgmTimer = setInterval(() => {
+    if (state !== "play" || muted) return;
+    const freq = bgmNotes[bgmStep % bgmNotes.length];
+    playBGMNote(freq, 0.2);
+    bgmStep++;
+  }, interval);
+}
+function stopBGM() {
+  if (bgmTimer) {
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+  }
+}
+
+/* ---------- 定数 ---------- */
+const PROJ_SPEED   = 780;   // 飛ぶ線の速度 px/s
+const INK_MAX      = 100;   // インク最大
+const INK_PER_PX   = 0.22;  // 1pxあたりの消費
+const INK_REGEN    = 26;    // 1秒あたり回復
+const MIN_STROKE   = 24;    // これ未満は不発
+const CORE_HP_MAX  = 5;
+const LINE_W       = 3;
+
+/* ---------- 状態 ---------- */
+let score = 0, wave = 1, waveTimer = 0, spawnTimer = 0;
+let coreHP = CORE_HP_MAX;
+let ink = INK_MAX;
+let shake = 0, hitFlash = 0, scrollOffset = 0;
+
+let stroke = null;            // 描画中: {pts:[{x,y}], len}
+const projectiles = [];       // {pts, vx, vy, life, hitSet}
+const enemies = [];           // {x,y,vx,vy,r,hp,maxhp,shape,rot,rotSpd,score,flash}
+const particles = [];
+const floaters = [];          // スコアポップ
+
+const core = { get x(){ return coreX; }, get y(){ return coreY; }, r: 26 };
+
+/* ---------- 敵定義 ---------- */
+const ENEMY_TYPES = [
+  { shape:3, r:14, hp:1, speed:70,  score:100, color:"#ff5aa0", homing:true  }, // 三角: 高速追尾 (HP1)
+  { shape:4, r:20, hp:2, speed:46,  score:250, color:"#ffd25a", homing:true  }, // 四角: 中速追尾 (HP2)
+  { shape:5, r:28, hp:3, speed:30,  score:600, color:"#c48aff", homing:false }, // 五角: 低速直線 (HP3) -> たまに直線的に動くやつ
+  { shape:6, r:24, hp:4, speed:38,  score:800, color:"#6ae0ff", homing:true  }, // 六角: 中低速追尾 (HP4)
+];
+
+function spawnEnemy(){
+  // 基本的に画面上部（または左右上部）から出現し、コアへ向かう
+  const margin = 40;
+  let x, y;
+  const rand = Math.random();
+  if (rand < 0.9) {
+    // 90%: 画面の上辺から
+    x = Math.random() * W;
+    y = -margin;
+  } else if (rand < 0.95) {
+    // 5%: 画面の左辺上部から
+    x = -margin;
+    y = Math.random() * H * 0.3;
+  } else {
+    // 5%: 画面の右辺上部から
+    x = W + margin;
+    y = Math.random() * H * 0.3;
+  }
+
+  // waveが進むほど硬い敵・追尾する敵が出やすい
+  const roll = Math.random() + (wave-1)*0.08;
+  const t = ENEMY_TYPES[roll > 1.8 ? 3 : roll > 1.15 ? 2 : roll > 0.6 ? 1 : 0];
+
+  const dx = core.x - x, dy = core.y - y;
+  const d = Math.hypot(dx, dy) || 1;
+  const spd = t.speed * (1 + (wave-1)*0.07);
+  enemies.push({
+    x, y, vx: dx/d*spd, vy: dy/d*spd,
+    r: t.r, hp: t.hp, maxhp: t.hp,
+    shape: t.shape, color: t.color, score: t.score,
+    homing: t.homing,
+    rot: Math.random()*Math.PI*2,
+    rotSpd: (Math.random()*2-1)*1.6,
+    flash: 0,
+  });
+}
+
+/* ---------- パーティクル ---------- */
+function burst(x, y, color, n, spd){
+  for (let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2;
+    const s = spd*(0.3+Math.random()*0.9);
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0.5+Math.random()*0.4,max:0.9,color});
+  }
+}
+function popScore(x,y,v,combo = 0){
+  const txt = combo > 0 ? `+${v} (${combo + 1} COMBO!)` : `+${v}`;
+  floaters.push({x,y,txt,life:0.9});
+}
+
+/* ---------- 入力 (Pointer Events で PC/スマホ共通) ---------- */
+let activePointer = null;
+
+cvs.addEventListener("pointerdown", (e) => {
+  if (state !== "play") return;
+  if (activePointer !== null) return;
+  activePointer = e.pointerId;
+  cvs.setPointerCapture(e.pointerId);
+  stroke = { pts: [{x:e.clientX, y:e.clientY}], len: 0 };
+  pointerX = e.clientX;
+  pointerY = e.clientY;
+  isDrawing = true;
+});
+
+cvs.addEventListener("pointermove", (e) => {
+  if (state !== "play" || !stroke || e.pointerId !== activePointer) return;
+  pointerX = e.clientX;
+  pointerY = e.clientY;
+  const last = stroke.pts[stroke.pts.length-1];
+  const dx = e.clientX - last.x, dy = e.clientY - last.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 4) return;
+  // インクが尽きたらそれ以上伸びない
+  const cost = d * INK_PER_PX;
+  if (ink - cost < 0) return;
+  ink -= cost;
+  stroke.len += d;
+  stroke.pts.push({x:e.clientX, y:e.clientY});
+  if (stroke.pts.length > 160) stroke.pts.shift(); // 安全弁
+});
+
+function releaseStroke(e){
+  if (e.pointerId !== activePointer) return;
+  activePointer = null;
+  isDrawing = false;
+  if (state !== "play" || !stroke) { stroke = null; return; }
+
+  if (stroke.len >= MIN_STROKE && stroke.pts.length >= 2){
+    // 描いた軌跡を「レール」として保存し、線がその上を逆走する
+    // 発射位置をコアに固定するため、最後の点(終点)がコアの中心に一致するように平行移動する
+    const lastPt = stroke.pts[stroke.pts.length-1];
+    const shiftX = core.x - lastPt.x;
+    const shiftY = core.y - lastPt.y;
+    const pts = stroke.pts.map(p => ({x:p.x + shiftX, y:p.y + shiftY}));
+    const cum = [0];                                // 各頂点までの弧長
+    for (let i = 1; i < pts.length; i++){
+      cum.push(cum[i-1] + Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y));
+    }
+    const total = cum[cum.length-1];
+    // 1周期ごとの移動量 = 終点→始点ベクトル (閉じた形ならその場で回り続ける)
+    const last = pts[pts.length-1];
+    const shift = { x: pts[0].x - last.x, y: pts[0].y - last.y };
+    const drift = Math.hypot(shift.x, shift.y);
+    // 移動が遅い(ほぼ閉じた)線は画面に残り続けるので寿命で管理
+    const travelTime = drift > 1 ? (Math.hypot(W,H) + total) / (PROJ_SPEED * drift / total) : Infinity;
+    const initialWidth = LINE_W + Math.min(25, total * 0.06);
+    const maxHits = Math.max(1, Math.min(5, Math.floor((initialWidth - LINE_W) / 5) + 1));
+    projectiles.push({
+      pts, cum, total, shift,
+      s: 0,                                         // 逆走した距離
+      cur: pts.map(p => ({x:p.x, y:p.y})),          // 現在位置バッファ
+      life: Math.min(6, 1 + travelTime),
+      initialWidth,
+      width: initialWidth,
+      maxHits,
+      hitsLeft: maxHits,
+      hitCount: 0,
+      hitMap: new Map(),                            // key: enemy, value: lastHitElapsedTime
+      elapsed: 0,                                   // 経過時間
+    });
+    // 発射音: 高速スイープのこぎり波でエレクトロニックな「シュピィィィン！」というアタックの強い発射音
+    beep(1400, 0.15, "sawtooth", 0.08, -1100);
+  } else {
+    ink = Math.min(INK_MAX, ink + stroke.len*INK_PER_PX*0.6);
+  }
+  stroke = null;
+}
+cvs.addEventListener("pointerup", releaseStroke);
+cvs.addEventListener("pointercancel", releaseStroke);
+
+/* ---------- 幾何: レール上の弧長 a に対応する座標 ----------
+   a < 0 (始点を越えた領域) は、描いた形をそのまま繰り返した
+   レールとして扱う。1周期ごとに shift (= 始点 - 終点) だけ
+   平行移動するので、ぐるぐる描けばぐるぐる回りながら進む。 */
+function pathPoint(pr, a, out){
+  let sx = 0, sy = 0;
+  if (a < 0){
+    const k = Math.ceil(-a / pr.total);   // 何周期ぶん手前か
+    a += k * pr.total;                    // [0, total) に折り返す
+    sx = pr.shift.x * k;
+    sy = pr.shift.y * k;
+  }
+  if (a >= pr.total){
+    const last = pr.pts[pr.pts.length-1];
+    out.x = last.x + sx; out.y = last.y + sy;
+    return;
+  }
+  // cum は単調増加なので二分探索
+  let lo = 0, hi = pr.cum.length - 1;
+  while (lo + 1 < hi){
+    const mid = (lo + hi) >> 1;
+    if (pr.cum[mid] <= a) lo = mid; else hi = mid;
+  }
+  const segLen = pr.cum[hi] - pr.cum[lo] || 1;
+  const t = (a - pr.cum[lo]) / segLen;
+  out.x = pr.pts[lo].x + (pr.pts[hi].x - pr.pts[lo].x) * t + sx;
+  out.y = pr.pts[lo].y + (pr.pts[hi].y - pr.pts[lo].y) * t + sy;
+}
+
+/* ---------- 幾何: 点と線分の距離 ---------- */
+function distPointSeg(px, py, ax, ay, bx, by){
+  const abx = bx-ax, aby = by-ay;
+  const t = Math.max(0, Math.min(1, ((px-ax)*abx + (py-ay)*aby) / (abx*abx + aby*aby || 1)));
+  const cx = ax + abx*t, cy = ay + aby*t;
+  return Math.hypot(px-cx, py-cy);
+}
+
+/* ---------- ゲーム進行 ---------- */
+function startGame(isContinue = false){
+  // ユーザージェスチャー(クリック)に同期してAudioContextを確実に作成・再開する
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+
+  state = "play";
+  if (isContinue) {
+    wave = continueWave;
+  } else {
+    score = 0;
+    wave = 1;
+  }
+  waveTimer = 0; spawnTimer = 0.5;
+  coreHP = CORE_HP_MAX; ink = INK_MAX; scrollOffset = 0;
+  coreInvuln = 0;
+  coreX = W / 2;
+  coreY = H * 0.8;
+  targetX = coreX;
+  targetY = coreY;
+  enemies.length = 0; projectiles.length = 0; particles.length = 0; floaters.length = 0;
+  stroke = null; activePointer = null;
+  document.getElementById("overlay").classList.add("hidden");
+  document.getElementById("continue").classList.add("hidden");
+  // クリーンなサイン波アルペジオでスタイリッシュな起動音
+  beep(440, 0.12, "sine", 0.06);
+  setTimeout(() => beep(660, 0.14, "sine", 0.06), 110);
+  setTimeout(() => beep(880, 0.18, "sine", 0.06), 220);
+  setTimeout(startBGM, 350);
+}
+function gameOver(){
+  stopBGM();
+  state = "over";
+  const ov = document.getElementById("overlay");
+  ov.classList.remove("hidden");
+  document.getElementById("title").innerHTML = 'GAME OVER<small>july8</small>';
+  const f = document.getElementById("final");
+  f.style.display = "block";
+  f.textContent = `SCORE ${score}  /  WAVE ${wave}`;
+  document.getElementById("howto").style.display = "none";
+  document.getElementById("start").textContent = "RETRY";
+  
+  // WAVE 2以上に到達していたらコンティニューボタンを表示する
+  const conBtn = document.getElementById("continue");
+  if (wave > 1) {
+    continueWave = wave;
+    conBtn.textContent = `CONTINUE (WAVE ${wave})`;
+    conBtn.classList.remove("hidden");
+  } else {
+    conBtn.classList.add("hidden");
+  }
+  
+  // 悲壮感のあるディープな終了音
+  beep(180, 0.8, "sawtooth", 0.1, -150);
+}
+document.getElementById("start").addEventListener("click", () => startGame(false));
+document.getElementById("continue").addEventListener("click", () => startGame(true));
+
+/* ---------- 更新 ---------- */
+function update(dt){
+  // ドラッグ中(クリック中)のみ目標座標を現在のポインター座標に更新する
+  if (state === "play" && isDrawing) {
+    targetX = pointerX;
+    targetY = pointerY;
+  }
+
+  // イージングと最大速度制限をかけて自機を目標座標へ動かす (最大速度を180px/sに減速し、イージング係数も1.1にマイルド化)
+  const dx = targetX - coreX;
+  const dy = targetY - coreY;
+  const d = Math.hypot(dx, dy);
+  if (d > 0.1) {
+    const step = d * (1 - Math.exp(-1.1 * dt)); // イージングによる移動予定量
+    const maxStep = 180 * dt; // 最大速度制限 (180px/s)
+    const actualStep = Math.min(step, maxStep);
+    coreX += (dx / d) * actualStep;
+    coreY += (dy / d) * actualStep;
+  }
+
+  // 無敵タイマーの更新
+  if (coreInvuln > 0) {
+    coreInvuln = Math.max(0, coreInvuln - dt);
+  }
+
+  if (state !== "play") return;
+
+  // 背景スクロール
+  const SCROLL_SPEED = 160;
+  scrollOffset = (scrollOffset + SCROLL_SPEED * dt) % 48;
+
+  // インク回復
+  ink = Math.min(INK_MAX, ink + INK_REGEN*dt);
+
+  // ウェーブ / 出現
+  waveTimer += dt;
+  if (waveTimer > 22){
+    waveTimer = 0; wave++;
+    // クリーンで未来的なチャイム（「ピロ〜ン♪」）
+    beep(587, 0.12, "sine", 0.06);
+    setTimeout(() => beep(880, 0.22, "sine", 0.06), 110);
+  }
+  spawnTimer -= dt;
+  if (spawnTimer <= 0){
+    spawnEnemy();
+    const interval = Math.max(0.55, 2.4 - wave*0.22);
+    spawnTimer = interval * (0.7 + Math.random()*0.6);
+  }
+
+  // 敵
+  for (let i = enemies.length-1; i >= 0; i--){
+    const en = enemies[i];
+
+    // 追尾型 (homing) の敵の場合、自機(コア)の現在位置に向けて徐々に旋回する
+    if (en.homing) {
+      const dx = core.x - en.x;
+      const dy = core.y - en.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const tx = dx / d, ty = dy / d; // ターゲット方向の単位ベクトル
+      
+      const curSpd = Math.hypot(en.vx, en.vy) || 1;
+      const cx = en.vx / curSpd, cy = en.vy / curSpd; // 現在の方向の単位ベクトル
+      
+      const turnRate = 2.0 * dt; // 旋回力
+      let nx = cx + (tx - cx) * turnRate;
+      let ny = cy + (ty - cy) * turnRate;
+      const nd = Math.hypot(nx, ny) || 1;
+      
+      en.vx = (nx / nd) * curSpd;
+      en.vy = (ny / nd) * curSpd;
+    }
+
+    en.x += en.vx*dt; en.y += en.vy*dt;
+    en.rot += en.rotSpd*dt;
+    if (en.flash > 0) en.flash -= dt;
+    // コア到達
+    if (Math.hypot(en.x-core.x, en.y-core.y) < en.r + core.r){
+      enemies.splice(i,1);
+      if (coreInvuln <= 0) {
+        coreHP--;
+        coreInvuln = 1.0; // 被弾後1.0秒間の無敵時間
+        shake = 10; hitFlash = 0.35;
+        burst(core.x, core.y, "#7dffb0", 26, 220);
+        // ズシッと響く「重低音の爆破アラート（ドゥゥン！）」
+        beep(180, 0.4, "sawtooth", 0.16, -140);
+        if (coreHP <= 0){ gameOver(); return; }
+      } else {
+        // 無敵時間中の接触: コアはノーダメージだが、敵は消滅し、軽い効果音とエフェクトを出す
+        burst(core.x, core.y, "#7dffb0", 12, 120);
+        // 超高音のサイン波スイープによる綺麗なガードシールド防衛音
+        beep(2200, 0.08, "sine", 0.05, -1000);
+      }
+    }
+  }
+
+  // 飛翔する線: 描いた軌跡(レール)を逆走し、始点を越えて直進する
+  for (let i = projectiles.length-1; i >= 0; i--){
+    const pr = projectiles[i];
+    pr.life -= dt;
+    pr.s += PROJ_SPEED * dt;
+    pr.elapsed += dt;
+    // 各頂点の現在位置 = 元の弧長位置から s だけ始点側へ戻った地点
+    for (let k = 0; k < pr.pts.length; k++){
+      pathPoint(pr, pr.cum[k] - pr.s, pr.cur[k]);
+    }
+
+    // 当たり判定: 線分の各セグメント vs 敵の円
+    for (let j = enemies.length-1; j >= 0; j--){
+      const en = enemies[j];
+      
+      // 同じ一閃から同じ敵への被弾は0.2秒以上の間隔が必要 (敵側の無敵時間)
+      const lastHitTime = pr.hitMap.get(en);
+      if (lastHitTime !== undefined && pr.elapsed - lastHitTime < 0.2) {
+        continue;
+      }
+      
+      let hit = false;
+      for (let k = 0; k < pr.cur.length-1 && !hit; k++){
+        const a = pr.cur[k], b = pr.cur[k+1];
+        if (distPointSeg(en.x, en.y, a.x, a.y, b.x, b.y) < en.r + pr.width / 2){
+          hit = true;
+        }
+      }
+      if (hit){
+        // 累積ヒット回数をコンボとしてカウント
+        const combo = pr.hitCount;
+        pr.hitCount++;
+        pr.hitMap.set(en, pr.elapsed); // 被弾時刻を記録
+        
+        // 耐久数を減らし、太さを摩耗させる
+        pr.hitsLeft--;
+        pr.width = pr.initialWidth * (pr.hitsLeft / pr.maxHits);
+        
+        en.hp--; en.flash = 0.12;
+        burst(en.x, en.y, en.color, 10 + combo * 4, 160 + combo * 20);
+        if (en.hp <= 0){
+          const baseV = en.score * (1 + Math.floor((wave-1)/3)*0.5) | 0;
+          const comboBonus = Math.floor(baseV * (combo * 0.1));
+          const v = baseV + comboBonus;
+          score += v;
+          popScore(en.x, en.y, v, combo);
+          burst(en.x, en.y, en.color, 22 + combo * 6, 240 + combo * 30);
+          enemies.splice(j,1);
+          // 爆発感のある「ドシャッ！」という爽快なクラッシュ音
+          beep(900 + combo * 100, 0.2, "sawtooth", 0.09, -800);
+        } else {
+          // 生存している場合
+          // 五角形➔四角形、四角形➔三角形 への変化のときに分裂(スプリット)処理を行う
+          if (en.maxhp === 3 || en.maxhp === 2) {
+            const nextHP = en.hp; // 減少後のHP (2 または 1)
+            const newType = ENEMY_TYPES[nextHP - 1]; // HP 2なら四角、HP 1なら三角
+            
+            // 進行方向の単位ベクトルを計算
+            const curSpd = Math.hypot(en.vx, en.vy) || 1;
+            const dx = en.vx / curSpd;
+            const dy = en.vy / curSpd;
+            
+            // 左右30度ずつ傾けて分裂させる
+            const angle = 30 * Math.PI / 180;
+            const baseSpd = newType.speed * (1 + (wave-1)*0.07);
+            
+            // 敵1: 元のエネミー自体を「直線型 (homing: false)」にして左に散らす
+            const vx1 = (dx * Math.cos(-angle) - dy * Math.sin(-angle)) * baseSpd;
+            const vy1 = (dx * Math.sin(-angle) + dy * Math.cos(-angle)) * baseSpd;
+            en.r = newType.r;
+            en.color = newType.color;
+            en.score = newType.score;
+            en.maxhp = newType.hp;
+            en.shape = newType.shape;
+            en.vx = vx1;
+            en.vy = vy1;
+            en.homing = false; // 直線型
+            
+            // 敵2: 新規生成エネミーを「追尾型 (homing: true)」にして右に散らす
+            const vx2 = (dx * Math.cos(angle) - dy * Math.sin(angle)) * baseSpd;
+            const vy2 = (dx * Math.sin(angle) + dy * Math.cos(angle)) * baseSpd;
+            const newEn = {
+              x: en.x,
+              y: en.y,
+              vx: vx2,
+              vy: vy2,
+              r: newType.r,
+              hp: nextHP,
+              maxhp: newType.hp,
+              shape: newType.shape,
+              color: newType.color,
+              score: newType.score,
+              homing: true, // 追尾型
+              rot: en.rot,
+              rotSpd: en.rotSpd,
+              flash: 0.12,
+            };
+            enemies.push(newEn);
+            // 新しく生まれたもう1体の敵に対しても、この一閃からの即時被弾を防ぐために無敵時間を記録する (0.2秒間保護)
+            pr.hitMap.set(newEn, pr.elapsed);
+            
+            // 分裂時の弾けるようなピッチアップ効果音
+            beep(380 + combo * 80, 0.08, "sawtooth", 0.05, 100);
+          } else {
+            // 分裂しない通常の置き換え (例: 六角形から五角形など)
+            const newType = ENEMY_TYPES[en.hp - 1];
+            en.r = newType.r;
+            en.color = newType.color;
+            en.score = newType.score;
+            en.maxhp = newType.hp;
+            en.shape = newType.shape;
+            
+            const currentSpeed = Math.hypot(en.vx, en.vy) || 1;
+            const dx = en.vx / currentSpeed;
+            const dy = en.vy / currentSpeed;
+            const baseSpd = newType.speed * (1 + (wave-1)*0.07);
+            en.vx = dx * baseSpd;
+            en.vy = dy * baseSpd;
+
+            // のこぎり波による金属的で鋭い「キィン！」というヒット音 (コンボが進むとさらにピッチが上がる)
+            beep(1800 + combo * 120, 0.08, "sawtooth", 0.06, -1200);
+          }
+        }
+
+        // 耐久度が尽きたら一閃を即時消滅
+        if (pr.hitsLeft <= 0) {
+          projectiles.splice(i, 1);
+          break; // 敵判定ループを脱出
+        }
+      }
+    }
+
+    // 寿命 / 画面外: 全頂点がレールを離れ(=直線化)、後端が画面外に出たら消す
+    const tail = pr.cur[pr.cur.length-1];
+    const offRail = pr.s >= pr.total;
+    if (pr.life <= 0 ||
+        (offRail && (tail.x < -200 || tail.x > W+200 || tail.y < -200 || tail.y > H+200))){
+      projectiles.splice(i,1);
+    }
+  }
+
+  // パーティクル
+  for (let i = particles.length-1; i >= 0; i--){
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0){ particles.splice(i,1); continue; }
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vx *= 0.96; p.vy *= 0.96;
+  }
+  for (let i = floaters.length-1; i >= 0; i--){
+    const f = floaters[i];
+    f.life -= dt; f.y -= 34*dt;
+    if (f.life <= 0) floaters.splice(i,1);
+  }
+
+  if (shake > 0) shake = Math.max(0, shake - 40*dt);
+  if (hitFlash > 0) hitFlash -= dt;
+}
+
+/* ---------- 描画 ---------- */
+function drawPoly(x, y, r, n, rot){
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++){
+    const a = rot + i/n*Math.PI*2;
+    const px = x + Math.cos(a)*r, py = y + Math.sin(a)*r;
+    i ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+  }
+}
+
+function render(t){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  if (shake > 0){
+    ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+  }
+
+  // 背景グリッド
+  ctx.strokeStyle = "rgba(90,160,190,0.22)";
+  ctx.lineWidth = 1;
+  const g = 48;
+  ctx.beginPath();
+  // 背景は固定のままにするため、X方向は core.x ではなく W/2 基準に戻す
+  for (let x = (W/2)%g; x < W; x += g){ ctx.moveTo(x,0); ctx.lineTo(x,H); }
+  for (let y = (core.y + scrollOffset)%g; y < H; y += g){ ctx.moveTo(0,y); ctx.lineTo(W,y); }
+  ctx.stroke();
+
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+
+  // コア
+  const pulse = 1 + Math.sin(t/300)*0.05;
+  ctx.save();
+  ctx.shadowBlur = 18; ctx.shadowColor = "#7dffb0";
+
+  // 無敵時間中は約60ms周期で半透明に高速点滅(フラッシュ)させて視覚的に示す
+  const isInvulnFlash = coreInvuln > 0 && Math.floor(t / 60) % 2 === 0;
+  if (isInvulnFlash) {
+    ctx.globalAlpha = 0.25;
+  }
+
+  ctx.strokeStyle = hitFlash > 0 ? "#ffffff" : "#7dffb0";
+  ctx.lineWidth = 2.5;
+  // 自機の残りHPに応じた角数で描画 (HP 5なら7角形、HP 1なら三角形)
+  const coreShape = coreHP + 2;
+  drawPoly(core.x, core.y, core.r*pulse, coreShape, t/1400);
+  ctx.stroke();
+  drawPoly(core.x, core.y, core.r*0.55*pulse, coreShape, -t/900);
+  ctx.stroke();
+  ctx.restore();
+
+  // 敵
+  for (const en of enemies){
+    ctx.save();
+    ctx.shadowBlur = 12; ctx.shadowColor = en.color;
+    ctx.strokeStyle = en.flash > 0 ? "#ffffff" : en.color;
+    ctx.lineWidth = 2.5;
+    
+    // 残りHPに応じた形状を描画 (HP1 = 三角、HP2 = 四角、HP3 = 五角)
+    // 頂点数 (shape) = HP + 2
+    const currentShape = en.hp + 2;
+    drawPoly(en.x, en.y, en.r, currentShape, en.rot);
+    ctx.stroke();
+    
+    // 追尾型 (homing) の場合は内側にエネルギーマーク（逆回転する0.5倍サイズの二重線）を描画して区別する
+    if (en.homing) {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      drawPoly(en.x, en.y, en.r * 0.5, currentShape, -en.rot);
+      ctx.stroke();
+      ctx.restore();
+    }
+    
+    ctx.restore();
+  }
+
+  // 飛翔する線
+  for (const pr of projectiles){
+    const a = Math.min(1, pr.life/0.5);
+    ctx.save();
+    ctx.globalAlpha = a;
+    
+    // 派手な点滅 (ストロボ効果): 30msごとに色を白と水色で切り替える
+    const isFlash = Math.floor(t / 30) % 2 === 0;
+    ctx.strokeStyle = isFlash ? "#ffffff" : "#9ff7ff";
+    
+    // 光彩の脈動: shadowBlurを高速に揺らす (8〜22pxの間で変化)
+    ctx.shadowBlur = 10 + Math.sin(t / 20) * 8;
+    ctx.shadowColor = "#9ff7ff";
+    
+    ctx.lineWidth = pr.width;
+    ctx.beginPath();
+    pr.cur.forEach((p,i) => i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 描画中の線 + 発射方向ガイド
+  if (stroke && stroke.pts.length){
+    const last = stroke.pts[stroke.pts.length-1];
+    const shiftX = core.x - last.x;
+    const shiftY = core.y - last.y;
+    ctx.save();
+    // 当たり判定がないことを示すため、光彩エフェクトは設定せず、シンプルな半透明の枠線のみにする
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255, 90, 160, 0.45)";
+    ctx.lineWidth = LINE_W + Math.min(25, stroke.len * 0.06);
+    ctx.beginPath();
+    stroke.pts.forEach((p,i) => {
+      const px = p.x + shiftX;
+      const py = p.y + shiftY;
+      i ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+    });
+    ctx.stroke();
+
+    // 全体の進行方向 (1周期ごとの移動 = 終点→始点) を点線矢印で示す
+    if (stroke.pts.length >= 2){
+      const p0 = stroke.pts[0], p1 = stroke.pts[stroke.pts.length-1];
+      const p0x = p0.x + shiftX, p0y = p0.y + shiftY;
+      const vdx = p0.x-p1.x, vdy = p0.y-p1.y, vd = Math.hypot(vdx,vdy);
+      if (vd > 10){
+        const ux = vdx/vd, uy = vdy/vd;
+        ctx.setLineDash([4,6]);
+        ctx.strokeStyle = "rgba(255,90,160,0.55)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(p0x, p0y);
+        ctx.lineTo(p0x + ux*70, p0y + uy*70);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // 矢印の先端
+        const hx = p0x + ux*70, hy = p0y + uy*70;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.lineTo(hx - ux*10 - uy*6, hy - uy*10 + ux*6);
+        ctx.moveTo(hx, hy);
+        ctx.lineTo(hx - ux*10 + uy*6, hy - uy*10 - ux*6);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // パーティクル
+  for (const p of particles){
+    ctx.globalAlpha = Math.max(0, p.life/p.max);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x-1.5, p.y-1.5, 3, 3);
+  }
+  ctx.globalAlpha = 1;
+
+  // スコアポップ
+  ctx.font = "bold 14px 'Courier New',monospace";
+  ctx.textAlign = "center";
+  for (const f of floaters){
+    ctx.globalAlpha = Math.max(0, f.life);
+    ctx.fillStyle = "#fff";
+    ctx.shadowBlur = 8; ctx.shadowColor = "#9ff7ff";
+    ctx.fillText(f.txt, f.x, f.y);
+  }
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+/* ---------- HUD ---------- */
+const elScore = document.getElementById("score");
+const elWave  = document.getElementById("wave");
+const elHP    = document.getElementById("hpbar");
+const elInk   = document.getElementById("inkbar");
+function hud(){
+  elScore.textContent = score;
+  elWave.textContent  = "WAVE " + wave;
+  elHP.style.transform  = `scaleX(${Math.max(0, coreHP/CORE_HP_MAX)})`;
+  elInk.style.transform = `scaleX(${ink/INK_MAX})`;
+}
+
+/* ---------- メインループ ---------- */
+let last = performance.now();
+function loop(t){
+  const dt = Math.min(0.05, (t-last)/1000);
+  last = t;
+  update(dt);
+  render(t);
+  hud();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

@@ -1,4 +1,61 @@
 <!DOCTYPE html>
+<!--
+============================================================================
+イロナダレ / Tumblume  ―  引き継ぎメモ（このコメントを読めば再開できます）
+============================================================================
+■ 何か
+  同色の塊を消す「さめがめ」系の一発勝負パズル。ルールの深さより「崩落＋
+  演出のカタルシス」で気持ちよくする方針。単一HTML・外部依存なし・Canvas2D。
+  全JSは末尾のscriptタグ内の1つのIIFE。タイトルは商標回避の造語（日本語=イロナダレ
+  /英語=Tumblume）。
+
+■ 遊び方 / ゲーム進行
+  ・盤面10×12。同色が2つ以上つながった塊をタップで消去→重力落下→空列は左詰め。
+  ・一発勝負：全消し(パーフェクト) か 手詰まり(=残りを自動一掃) で終了。
+    リプレイボタンは無し（もう一度遊ぶ=ページ再読込）。
+  ・得点 = 素点(連結数-1)^2 × 段位/コンボ由来の各種「加算」の合計。
+
+■ FEVER段位（moves=消した回数で昇格：3手目→以降4手ごと）
+  level = moves<3?0 : 1+floor((moves-3)/4)
+  Lv1(3手)COMBO / Lv2(7)FEVER / Lv3(11)DOUBLE FEVER / Lv4(15)TRIPLE FEVER /
+  Lv5(19)MIRACLE FEVER / Lv6(23)GALAXY FEVER / Lv7(27)COSMIC FEVER / 以降は+2,+3…
+  昇格時：中央放射リング＋全画面フラッシュ＋スロー＋専用ファンファーレ＋2行バナー
+  （文字は段位で拡大）。演出強度 heat=min(2,0.35+(lv-1)^1.4*0.28)。
+
+■ 加算カテゴリ（BONUSES：解禁段位で増える。係数の増分は二次的=派手）
+  Lv1 コンボ加算(×0.5) / Lv2 フィーバー加算(0.6) / Lv3 チェイン加算(1.0) /
+  Lv4 ラッシュ加算(1.9) / Lv5 ミラクル加算(3.5) / Lv6 ギャラクシー加算(6.0) /
+  Lv7 コズミック加算(9.6)。増分=0.1,0.4,0.9,1.6,2.5,3.6。＋連続加算(コンボ継続)。
+  合計倍率の目安：×1.5→2.6→4.7→8.7→16.2→29.7→52.8。
+  加算表示は小さめ・重なり・左右交互の微ドリフトで“気持ちいいパーティクル”扱い
+  （読ませる文字ではない）。
+
+■ 段位ごとの見た目/音
+  ・スポットライト：feverActive(level>=1)で点灯。level<4は中心固定、
+    level>=4(TRIPLE)から複数光源が旋回(emitters=min(4,level-2))。
+  ・背景：level>=6(GALAXY)で宇宙へ(星/星雲/惑星/流星、突入時ワープ)。
+    level>=7(COSMIC)で別宇宙(星雲変色/銀河回転/中心発光/再ワープ)。
+  ・BGM：procedural(Web Audio)。musicStage=moves<3?0:min(7,level)で楽器増加：
+    0キックのみ→1+ベース→2+ハット→3+パッド→4+アルペジオ→5+リード→6+高音→7+クラップ。
+    テンポ 96+min(7,stage)*7 bpm。
+  ・ブロックは heat連動で フラット→立体(グラデ+ハイライト)。粒子は3手目から。
+
+■ クリア後（段位とは別）
+  宇宙→地球へ帰還：白フラッシュ＋「ただいま、地球！」→ 青空(全消し時のみ夜空)に
+  地面から花火が打ち上がる(円形/しだれ柳/二段咲き/スターマイン連発)。掛け声巡回。
+
+■ 実装の要所（関数名）
+  resize(幅720cap＋高さで盤面フィット) / tapCell / registerClear(段位) /
+  levelUp / killBlock / collapse / checkEnd・startClearout・finishCelebrate・
+  celebrateStart / firework・spawnShell / drawSpace・drawSky・drawFever / render /
+  update(simNow=スロー対応の内部時計, hitstopReal, timeScale) / musicStep・musicScheduler。
+  配慮：prefers-reduced-motionで回転/ストロボ/ワープ抑制。音ON/OFFトグルでBGMごとミュート。
+
+■ 今後の候補（未着手アイデア）
+  ワープをより長く映画的に / COSMICで銀河の渦(スパイラルアーム) / 惑星に環・衛星 /
+  クリア時スコアのカウントアップ / ハイスコア保存 / 目標付き(例:15手全消し) 等。
+============================================================================
+-->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -119,13 +176,13 @@
   const PROG=[ {root:45,tri:[57,60,64]}, {root:41,tri:[53,57,60]}, {root:48,tri:[60,64,67]}, {root:43,tri:[55,59,62]} ];
   // FEVER段位ごとに解禁される加算カテゴリ（上位ほど本数も係数も増えてインフレ）
   const BONUSES=[
-    {lv:1,label:"FEVER加算",      color:"#ffcf3b",glow:"rgba(255,207,59,.9)",  coef:l=>l*0.5},
-    {lv:2,label:"チェイン加算",    color:"#ff9bc0",glow:"rgba(255,90,150,.9)",  coef:l=>(l-1)*0.6},
-    {lv:3,label:"ラッシュ加算",    color:"#5ad6ff",glow:"rgba(90,214,255,.9)",  coef:l=>(l-2)*0.8},
-    {lv:4,label:"ブレイズ加算",    color:"#ff8a3b",glow:"rgba(255,125,59,.9)",  coef:l=>(l-3)*1.1},
-    {lv:5,label:"ドライブ加算",    color:"#b06bff",glow:"rgba(176,107,255,.9)", coef:l=>(l-4)*1.5},
-    {lv:6,label:"ギャラクシー加算", color:"#7dff9e",glow:"rgba(125,255,158,.9)", coef:l=>(l-5)*2.0},
-    {lv:7,label:"コズミック加算",  color:"#ffffff",glow:"rgba(255,255,255,.95)",coef:l=>(l-6)*2.6},
+    {lv:1,label:"コンボ加算",      color:"#ffcf3b",glow:"rgba(255,207,59,.9)",  coef:l=>l*0.5},
+    {lv:2,label:"フィーバー加算",  color:"#ff9bc0",glow:"rgba(255,90,150,.9)",  coef:l=>(l-1)*0.6},
+    {lv:3,label:"チェイン加算",    color:"#5ad6ff",glow:"rgba(90,214,255,.9)",  coef:l=>(l-2)*1.0},
+    {lv:4,label:"ラッシュ加算",    color:"#ff8a3b",glow:"rgba(255,125,59,.9)",  coef:l=>(l-3)*1.9},
+    {lv:5,label:"ミラクル加算",    color:"#b06bff",glow:"rgba(176,107,255,.9)", coef:l=>(l-4)*3.5},
+    {lv:6,label:"ギャラクシー加算", color:"#7dff9e",glow:"rgba(125,255,158,.9)", coef:l=>(l-5)*6.0},
+    {lv:7,label:"コズミック加算",  color:"#ffffff",glow:"rgba(255,255,255,.95)",coef:l=>(l-6)*9.6},
   ];
 
   const canvas=document.getElementById("c"), ctx=canvas.getContext("2d");
@@ -304,7 +361,7 @@
     const parts=[]; let bonusTotal=0;
     for(const b of BONUSES){ if(level>=b.lv){ const v=Math.round(base*b.coef(level)); if(v>0){ bonusTotal+=v; parts.push({label:b.label,val:v,color:b.color,glow:b.glow}); } } }
     const comboAdd=Math.round(base*Math.max(0,combo-1)*0.3);
-    if(comboAdd>0) parts.push({label:"コンボ加算",val:comboAdd,color:"#ffd7a0",glow:"rgba(255,180,90,.9)"});
+    if(comboAdd>0) parts.push({label:"連続加算",val:comboAdd,color:"#ffd7a0",glow:"rgba(255,180,90,.9)"});
     const gained=base+bonusTotal+comboAdd;
     score+=gained; scoreEl.textContent=score;
 
@@ -334,9 +391,9 @@
       grid[b.c][b.r]=null; dying.push(b); });
     [...dying].sort((a,b)=>(a.dieDelay||0)-(b.dieDelay||0)).forEach((b,i)=>b.step=i);
     popups.push({text:"+"+gained, sub:n+" 連結", x:ox, y:oy, life:1, size:n>=14?1.5:1});
-    let stackY=oy-cell*0.95;
-    for(let pi=0;pi<parts.length;pi++){ const pr=parts[pi];
-      popups.push({text:pr.label+" +"+pr.val, x:ox, y:stackY, life:1.2+pi*0.12, size:0.66, color:pr.color, glow:pr.glow}); stackY-=cell*0.56; }
+    let stackY=oy-cell*0.8;
+    for(let pi=0;pi<parts.length;pi++){ const pr=parts[pi]; const dir=(pi%2)?1:-1;
+      popups.push({text:pr.label+" +"+pr.val, x:ox, y:stackY, vx:dir*cell*(0.2+pi*0.05), life:1.2+pi*0.12, size:0.56, color:pr.color, glow:pr.glow}); stackY-=cell*0.36; }
 
     dying.forEach(b=>b.dieAt=simNow+(b.dieDelay||0));
     waveEndAt=simNow+maxDelay+140; phase="clearing"; updateFeverUI();
@@ -571,12 +628,12 @@
       ctx.beginPath(); ctx.arc(rg.x,rg.y,rg.r,0,Math.PI*2); ctx.stroke(); }
     ctx.globalAlpha=1; ctx.globalCompositeOperation="source-over";
 
-    for(const pu of popups){ const a=clamp(pu.life*1.5,0,1), rise=(1-pu.life)*44, sz=pu.size||1; ctx.textAlign="center";ctx.textBaseline="middle";
+    for(const pu of popups){ const a=clamp(pu.life*1.5,0,1), rise=(1-pu.life)*44, sz=pu.size||1, dx=(pu.vx||0)*(1-pu.life); ctx.textAlign="center";ctx.textBaseline="middle";
       const lines=(""+pu.text).split("\n"), fs=Math.round(cell*0.75*sz), lh=fs*1.02, y0=pu.y-rise-(lines.length-1)*lh/2;
       ctx.globalAlpha=a; ctx.font=`800 ${fs}px system-ui,sans-serif`; ctx.fillStyle=pu.color||"#fff";
       ctx.shadowColor=pu.glow||"rgba(255,120,190,.9)"; ctx.shadowBlur=18;
-      for(let li=0;li<lines.length;li++) ctx.fillText(lines[li],pu.x,y0+li*lh); ctx.shadowBlur=0;
-      if(pu.sub){ ctx.globalAlpha=a*0.85; ctx.font=`800 ${Math.round(cell*0.32)}px system-ui,sans-serif`; ctx.fillStyle="#ffd7a0"; ctx.fillText(pu.sub,pu.x,y0+(lines.length-1)*lh+cell*0.5); } ctx.globalAlpha=1; }
+      for(let li=0;li<lines.length;li++) ctx.fillText(lines[li],pu.x+dx,y0+li*lh); ctx.shadowBlur=0;
+      if(pu.sub){ ctx.globalAlpha=a*0.85; ctx.font=`800 ${Math.round(cell*0.32)}px system-ui,sans-serif`; ctx.fillStyle="#ffd7a0"; ctx.fillText(pu.sub,pu.x+dx,y0+(lines.length-1)*lh+cell*0.5); } ctx.globalAlpha=1; }
     ctx.restore();
 
     if(bloom>0.001){ ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=Math.min(0.5,bloom*0.16); ctx.fillStyle="#fff"; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1; ctx.globalCompositeOperation="source-over"; }

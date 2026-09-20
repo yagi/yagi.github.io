@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RECOVERY DECISION</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js"></script>
+</head>
+<body class="terminal-page">
+  <main class="terminal">
+    <h1>RECOVERY DECISION</h1>
+    <hr>
+    <div class="status">Recovered: 91%</div>
+    <p>9% remains.</p>
+    <p>Complete recovery?</p>
+
+    <div class="choice-wrap">
+      <div class="choice">
+        <h3>RESTORE</h3>
+        <p>Restore remaining records and return this identity to the archive.</p>
+        <button onclick="choose('restore')">復元する</button>
+      </div>
+      <div class="choice">
+        <h3>DELETE</h3>
+        <p>Erase all recovered records.</p>
+        <button onclick="choose('delete')">削除する</button>
+      </div>
+    </div>
+  </main>
+  <script>
+    function choose(kind) {
+      saveState({ ending: kind, endedAt: localTimestamp() });
+      location.href = kind === 'restore' ? 'ending-restore.html' : 'ending-delete.html';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NO RECORD FOUND</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="game.js"></script>
+</head>
+<body class="terminal-page">
+  <main class="terminal">
+    <h1>0%</h1>
+    <hr>
+    <p>No record found.</p>
+    <p id="line2" hidden>水原ユウという人物に関する記録はありません。</p>
+    <p id="line3" hidden>最終閲覧者：あなた</p>
+    <p id="back" class="endline" hidden><a class="button" href="old-302.html">Return</a></p>
+  </main>
+  <script>
+    setTimeout(() => document.getElementById('line2').hidden=false, 1600);
+    setTimeout(() => document.getElementById('line3').hidden=false, 3300);
+    setTimeout(() => document.getElementById('back').hidden=false, 4500);
+  </script>
+</body>
+</html>
