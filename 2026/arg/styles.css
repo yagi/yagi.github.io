@@ -99,3 +99,5 @@ input, button {
   .container { padding-top: 24px; }
   .terminal { padding-top: 32px; }
 }
+
+.terminal a:not(.button) {color:#a9cadb} .block-map {display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:28px 0}.block-map span {border:1px solid #687071;padding:24px 4px;text-align:center}.block-map .missing {border-style:dashed;background:repeating-linear-gradient(135deg,#202526,#202526 8px,#171b1c 8px,#171b1c 16px)} h1,code {overflow-wrap:anywhere} :focus-visible {outline:2px solid #b88836;outline-offset:4px}

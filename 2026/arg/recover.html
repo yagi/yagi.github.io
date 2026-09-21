@@ -3,47 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>IDENTITY RECOVERY</title>
+  <title>INDEX REPAIR</title>
   <link rel="stylesheet" href="styles.css">
   <script src="game.js"></script>
 </head>
 <body class="terminal-page">
   <main class="terminal">
-    <h1>IDENTITY RECOVERY</h1>
+    <h1>INDEX REPAIR</h1>
     <hr>
-    <div class="logline">2016-11-06</div>
-    <div class="logline">15:08 photographed</div>
-    <div class="logline">15:42 message</div>
-    <div class="logline">16:03 station</div>
-    <div class="logline">16:51 ---</div>
-    <div class="logline">17:43 deletion requested</div>
-
-    <hr>
-    <p>IDENTITY<br>水原 <span class="redacted">ユウ</span></p>
-    <p>AGE<br><span class="redacted">20</span></p>
-    <p>AFFILIATION<br><span class="redacted">東央大学</span></p>
-
-    <p class="muted">Restore missing fields.</p>
-    <label>NAME<br><input id="name" autocomplete="off"></label><br>
-    <label>AGE<br><input id="age" autocomplete="off"></label><br>
-    <label>AFFILIATION<br><input id="aff" autocomplete="off"></label><br>
-    <button id="submit">RESTORE</button>
-    <div id="error" class="error"></div>
+    <div class="status">Index coverage: 68%</div>
+    <p>照合対象：2016-11-06 / 参照元の表記が欠けています。</p>
+    <p class="muted">保存ページ3件を比較して、同じ項目に対応する文字列を入力してください。</p>
+    <p><a href="u-2046-11.html">参照元の履歴を開く</a></p>
+    <form id="fields">
+    <label>出演者欄の表記（水原 …）<br><input id="name" autocomplete="off" required></label><br>
+    <label>紹介欄の年齢（保存時点）<br><input id="age" autocomplete="off" required></label><br>
+    <label>学園祭の主催校<br><input id="aff" autocomplete="off" required></label><br>
+    <button id="submit" type="submit">索引を照合</button>
+    </form>
+    <div id="error" class="error" role="status"></div>
   </main>
 
   <script>
-    document.getElementById('submit').onclick = () => {
-      const n = document.getElementById('name').value.trim().replace(/\s/g,'');
-      const a = document.getElementById('age').value.trim();
-      const f = document.getElementById('aff').value.trim().replace(/\s/g,'');
+    document.getElementById('fields').onsubmit = (event) => {
+      event.preventDefault();
+      const n = document.getElementById('name').value.normalize('NFKC').trim().replace(/\s/g,'');
+      const a = document.getElementById('age').value.normalize('NFKC').trim();
+      const f = document.getElementById('aff').value.normalize('NFKC').trim().replace(/\s/g,'');
       const okName = ['水原ユウ','ユウ','水原ゆう','ゆう'].includes(n);
       const okAge = a === '20' || a === '20歳';
       const okAff = ['東央大学','東央大'].includes(f);
       if (okName && okAge && okAff) {
-        saveState({ recovered: 83 });
+        saveState({ recovered: 83, identityRestored: true });
         location.href = 'photo.html';
       } else {
-        document.getElementById('error').textContent = 'Record mismatch.';
+        document.getElementById('error').textContent = '一致しない項目：' + [!okName && '出演者欄（学園祭記録）', !okAge && '年齢（メンバー紹介）', !okAff && '主催校（学園祭記録）'].filter(Boolean).join('、');
       }
     };
   </script>

@@ -19,16 +19,15 @@
 
       <p>古いバックアップを片付けていたら、2016年ごろに保存したらしいHTMLがいくつか出てきた。</p>
       <p>大半は当時見ていた個人サイトや、もう閉鎖されたサービスのページだった。ファイル名も適当で、何のために保存したのかほとんど覚えていない。</p>
-      <p>その中に一つだけ、妙なファイルがあった。本文はほぼ空で、メタデータのような文字列だけが残っていた。</p>
+      <p>その中に一つだけ、本文がほとんどなく、メタデータのような文字列だけ残ったファイルがあった。</p>
 
       <pre style="white-space:pre-wrap;background:#efede5;padding:16px;border:1px solid #d7d2c6">created: 2016-11-06
-expire: 2016-11-06 17:43
+expire: true
 reference: none</pre>
 
-      <p>削除日時のようにも見えるけれど、そもそもローカルに保存されているHTMLなので意味がよく分からない。</p>
-      <p>誰にも参照されなければ、そのうち消えるのだと思う。</p>
-
-      <p class="note">追記：元URLらしき文字列も残っていたが、現在はアクセスできない。</p>
+      <p>キャッシュか何かの残骸だと思う。特に使い道もないけれど、こういう意味の分からないものほど捨てにくい。</p>
+      <p class="note">追記：保存元のパスは <code>/時刻4桁/月日4桁/</code> という並びだった。このサイトのURLの末尾をその形に置き換えるらしい。時刻の数字だけ欠けている。</p>
+      
       <p class="note">はてなブックマーク：<a href="bookmark-mock.html">コメントを見る</a></p>
 
       <div id="changed" hidden>
@@ -41,11 +40,15 @@ reference: none</pre>
   </main>
 
   <script>
+    function renderStamp() {
     const s = loadState();
     if (s.endedAt) {
       document.getElementById('changed').hidden = false;
       document.getElementById('stamp').textContent = s.endedAt;
     }
+    }
+    renderStamp();
+    window.addEventListener("pageshow", renderStamp);
   </script>
 </body>
 </html>
